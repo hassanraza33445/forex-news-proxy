@@ -56,19 +56,33 @@ function parseRSS(xml, source) {
 }
 
 module.exports = async (req, res) => {
+  // CORS headers - allow all origins
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'public, max-age=180');
 
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
 
   try {
-    const results = await Promise.allSettled(FEEDS.map(f => fetchUrl(f.url).then(xml => parseRSS(xml, f.name))));
+    const results = await Promise.allSettled(
+      FEEDS.map(f => fetchUrl(f.url).then(xml => parseRSS(xml, f.name)))
+    );
     let items = [];
     results.forEach(r => { if (r.status === 'fulfilled') items = items.concat(r.value); });
     items.sort((a, b) => new Date(b.date) - new Date(a.date));
     const seen = new Set();
-    items = items.filter(n => { const k = n.title.slice(0,50).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+    items = items.filter(n => {
+      const k = n.title.slice(0,50).toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
     res.status(200).json({ success: true, count: items.length, items, fetchedAt: new Date().toISOString() });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
